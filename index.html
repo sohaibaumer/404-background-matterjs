@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Shapes Project</title>
+    <style>
+      body {
+        margin: 0;
+      }
+      #matter-container {
+        width: 100%;
+        height: 100vh;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="matter-container"></div>
+    <script src="./node_modules/matter-js/build/matter.js"></script>
+    <script>
+      const matterContainer = document.querySelector("#matter-container");
+      const THICKNESS = 60;
+      // module aliases
+      let Engine = Matter.Engine,
+        Render = Matter.Render,
+        Runner = Matter.Runner,
+        Bodies = Matter.Bodies,
+        Composite = Matter.Composite,
+        Mouse = Matter.Mouse,
+        MouseConstraint = Matter.MouseConstraint;
+      Body = Matter.Body;
+      Query = Matter.Query;
+
+      // create an engine
+      let engine = Engine.create();
+
+      // create a renderer
+      let render = Render.create({
+        element: matterContainer,
+        engine: engine,
+        options: {
+          width: matterContainer.clientWidth,
+          height: matterContainer.clientHeight,
+          wireframes: false,
+          showAngleIndicator: true,
+          background: "transparent",
+        },
+      });
+
+      // add walls
+      let leftWall = Bodies.rectangle(
+        0 - THICKNESS / 2,
+        matterContainer.clientHeight / 2,
+        THICKNESS,
+        matterContainer.clientHeight * 5,
+        {
+          isStatic: true,
+        }
+      );
+
+      let rightWall = Bodies.rectangle(
+        matterContainer.clientWidth + THICKNESS / 2,
+        matterContainer.clientHeight / 2,
+        THICKNESS,
+        matterContainer.clientHeight * 5,
+        {
+          isStatic: true,
+        }
+      );
+
+      // randomize x-axis position between 10vw and 90vw in pixels
+      function xPosition() {
+        const xPositionVw = 10 + Math.random() * 80;
+        return (xPositionVw * window.innerWidth) / 100;
+      }
+
+      // randomize y-axis position between -100vw and 0vw in pixels
+      function yPosition() {
+        const yPositionVw = Math.random() * 100;
+        return (-yPositionVw * window.innerWidth) / 100;
+      }
+
+      // scaling factor based on the original screen size and current screen size
+      const originalScreenWidth = 1440;
+      const currentScreenWidth = window.innerWidth;
+      const scaleFactor = currentScreenWidth / originalScreenWidth;
+      console.log("scaleFactor: ", scaleFactor);
+
+      for (let i = 0; i < 3; i++) {
+        let options = {
+          friction: 0.3 / scaleFactor,
+          frictionAir: 0.01 / scaleFactor,
+          restitution: 0.5 * scaleFactor,
+          /* render: { fillStyle: "black" }, */
+        };
+
+        let xPos = xPosition();
+        let yPos = yPosition();
+        let circle = Bodies.circle(
+          xPosition(),
+          yPosition(),
+          matterContainer.clientWidth / 28,
+          options
+        );
+        let square = Bodies.rectangle(
+          xPosition(),
+          yPosition(),
+          matterContainer.clientWidth / 15,
+          matterContainer.clientWidth / 15,
+          options
+        );
+        let triangle = Bodies.fromVertices(
+          xPosition(),
+          yPosition(),
+          [
+            { x: 0, y: 0 }, // Top-left vertex
+            { x: matterContainer.clientWidth / 15, y: 0 }, // Top-right vertex
+            { x: 0, y: matterContainer.clientWidth / 15 }, // Bottom-left vertex
+          ],
+          options
+        );
+        let dShape = Matter.Body.create({
+          parts: [
+            Bodies.circle(
+              xPos,
+              yPos,
+              matterContainer.clientWidth / 28,
+              options
+            ),
+            Bodies.rectangle(
+              xPos - matterContainer.clientWidth / 56,
+              yPos,
+              matterContainer.clientWidth / 28,
+              matterContainer.clientWidth / 14,
+              options
+            ),
+          ],
+        });
+        Composite.add(engine.world, [circle, square, triangle, dShape]);
+      }
+
+      var ground = Bodies.rectangle(
+        matterContainer.clientWidth / 2,
+        matterContainer.clientHeight + THICKNESS / 2,
+        27184,
+        THICKNESS,
+        { isStatic: true }
+      );
+
+      // add all of the bodies to the world
+      Composite.add(engine.world, [ground, leftWall, rightWall]);
+
+      let mouse = Mouse.create(render.canvas);
+      let mouseConstraint = MouseConstraint.create(engine, {
+        mouse: mouse,
+        constraint: {
+          stiffness: 0.2,
+          render: {
+            visible: false, 
+          },
+        },
+      });
+
+      Composite.add(engine.world, mouseConstraint);
+
+      // run the renderer
+      Render.run(render);
+
+      // create runner
+      var runner = Runner.create();
+
+      // run the engine
+      Runner.run(runner, engine);
+
+      function handleResize() {
+        // set canvas size to new values
+        render.canvas.width = matterContainer.clientWidth;
+        render.canvas.height = matterContainer.clientHeight;
+
+        // reposition ground
+        Matter.Body.setPosition(
+          ground,
+          Matter.Vector.create(
+            matterContainer.clientWidth / 2,
+            matterContainer.clientHeight + THICKNESS / 2
+          )
+        );
+
+        Matter.Body.setPosition(
+          rightWall,
+          Matter.Vector.create(
+            matterContainer.clientWidth + THICKNESS / 2,
+            matterContainer.clientHeight / 2
+          )
+        );
+      }
+
+      window.addEventListener("resize", () => handleResize(matterContainer));
+
+      render.canvas.addEventListener("click", (event) => {
+        // mouse position relative to the canvas
+        const mousePosition = {
+          x: event.clientX - render.canvas.getBoundingClientRect().left,
+          y: event.clientY - render.canvas.getBoundingClientRect().top,
+        };
+
+        // bodies that are clicked
+        const bodiesUnderMouse = Query.point(
+          Composite.allBodies(engine.world),
+          mousePosition
+        );
+
+        // click to make them bounce
+        const bounceForce = { x: 0, y: -0.5 * scaleFactor };
+        bodiesUnderMouse.forEach((body) => {
+          Body.applyForce(body, body.position, bounceForce);
+        });
+      });
+    </script>
+  </body>
+</html>
